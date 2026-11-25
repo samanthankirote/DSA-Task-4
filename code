@@ -1,0 +1,152 @@
+"""AVL tree with insertion that detects and corrects imbalance."""
+
+
+class Node:
+    def __init__(self, key):
+        self.key = key
+        self.left = None
+        self.right = None
+        self.height = 1  # a new node is a leaf
+
+
+class AVLTree:
+    def __init__(self):
+        self.root = None
+
+    # ---------- helpers ----------
+    @staticmethod
+    def height(node):
+        return node.height if node else 0
+
+    def balance_factor(self, node):
+        """left height - right height (> 1 means left-heavy, < -1 right-heavy)."""
+        return self.height(node.left) - self.height(node.right) if node else 0
+
+    def _update_height(self, node):
+        node.height = 1 + max(self.height(node.left), self.height(node.right))
+
+    # ---------- rotations ----------
+    def _rotate_right(self, z):
+        #       z                y
+        #      / \              / \
+        #     y   T4   ==>     x   z
+        #    / \                  / \
+        #   x   T3              T3  T4
+        y = z.left
+        t3 = y.right
+        y.right = z
+        z.left = t3
+        self._update_height(z)  # z is now lower, update it first
+        self._update_height(y)
+        return y
+
+    def _rotate_left(self, z):
+        #     z                  y
+        #    / \                / \
+        #   T1  y     ==>      z   x
+        #      / \            / \
+        #     T2  x          T1  T2
+        y = z.right
+        t2 = y.left
+        y.left = z
+        z.right = t2
+        self._update_height(z)
+        self._update_height(y)
+        return y
+
+    # ---------- rebalance ----------
+    def _rebalance(self, node):
+        """Update height, check balance factor, fix imbalance if present."""
+        self._update_height(node)
+        balance = self.balance_factor(node)
+
+        # Left-heavy
+        if balance > 1:
+            if self.balance_factor(node.left) < 0:      # Left-Right case
+                node.left = self._rotate_left(node.left)
+            return self._rotate_right(node)             # Left-Left case
+
+        # Right-heavy
+        if balance < -1:
+            if self.balance_factor(node.right) > 0:     # Right-Left case
+                node.right = self._rotate_right(node.right)
+            return self._rotate_left(node)              # Right-Right case
+
+        return node  # already balanced
+
+    # ---------- insertion ----------
+    def insert(self, key):
+        self.root = self._insert(self.root, key)
+
+    def _insert(self, node, key):
+        # 1. normal BST insertion
+        if node is None:
+            return Node(key)
+        if key < node.key:
+            node.left = self._insert(node.left, key)
+        elif key > node.key:
+            node.right = self._insert(node.right, key)
+        else:
+            return node  # duplicates ignored
+
+        # 2-4. update height, check balance, rotate if needed (on the way back up)
+        return self._rebalance(node)
+
+    # ---------- utilities ----------
+    def inorder(self):
+        out = []
+
+        def walk(n):
+            if n:
+                walk(n.left)
+                out.append(n.key)
+                walk(n.right)
+
+        walk(self.root)
+        return out
+
+    def is_balanced(self):
+        def check(n):
+            if n is None:
+                return True
+            return abs(self.balance_factor(n)) <= 1 and check(n.left) and check(n.right)
+
+        return check(self.root)
+
+    def print_tree(self):
+        def show(n, prefix="", is_left=True):
+            if n is None:
+                return
+            show(n.right, prefix + ("│   " if is_left else "    "), False)
+            print(prefix + ("└── " if is_left else "┌── ") + f"{n.key} (h={n.height}, bf={self.balance_factor(n)})")
+            show(n.left, prefix + ("    " if is_left else "│   "), True)
+
+        show(self.root)
+
+
+if __name__ == "__main__":
+    import random
+
+    # Demo of each rotation case
+    demos = {
+        "Left-Left": [30, 20, 10],
+        "Right-Right": [10, 20, 30],
+        "Left-Right": [30, 10, 20],
+        "Right-Left": [10, 30, 20],
+    }
+    for name, keys in demos.items():
+        t = AVLTree()
+        for k in keys:
+            t.insert(k)
+        print(f"\n{name}: insert {keys}")
+        t.print_tree()
+        assert t.is_balanced()
+
+    # Randomised stress test
+    t = AVLTree()
+    data = random.sample(range(10_000), 2_000)
+    for k in data:
+        t.insert(k)
+        assert t.is_balanced()
+    assert t.inorder() == sorted(data)
+    print(f"\nStress test passed: 2000 inserts, tree height {t.height(t.root)}")
